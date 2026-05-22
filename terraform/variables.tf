@@ -17,13 +17,13 @@ variable "environment" {
 variable "vpc_name" {
   description = "Name of the VPC network"
   type        = string
-  default     = "robot-platform-vpc"
+  default     = "squid-vpc"
 }
 
 variable "subnet_name" {
   description = "Name of the subnet within the VPC"
   type        = string
-  default     = "robot-platform-subnet"
+  default     = "squid-subnet"
 }
 
 variable "subnet_cidr" {
@@ -35,5 +35,5 @@ variable "subnet_cidr" {
 variable "cluster_name" {
   description = "Cluster name prefix"
   type        = string
-  default     = "robot-platform"
+  default     = "squid"
 }
