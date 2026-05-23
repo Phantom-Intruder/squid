@@ -1,4 +1,4 @@
-gcp_project_id = "squid-gcp"
+gcp_project_id = "robot-platform-gcp"
 gcp_region     = "us-central1"
 environment    = "prod"
 

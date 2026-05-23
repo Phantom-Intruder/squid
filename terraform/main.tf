@@ -65,6 +65,19 @@ resource "google_compute_firewall" "allow_ssh" {
   source_ranges = ["0.0.0.0/0"]
 }
 
+resource "google_compute_firewall" "allow_iap_ssh" {
+  name    = "${var.vpc_name}-allow-iap-ssh"
+  network = google_compute_network.vpc.id
+
+  # This is the MANDATORY range for Google Identity Aware Proxy
+  source_ranges = ["35.235.240.0/20"] 
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+}
+
 resource "google_compute_instance" "squid_proxy" {
   count        = 2
   name         = "squid-proxy-${count.index + 1}"
