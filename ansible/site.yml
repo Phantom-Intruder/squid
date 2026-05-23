@@ -1,0 +1,9 @@
+---
+- name: Configure High Availability Squid Proxy Farm
+  hosts: all  # Targets the IPs in your inventory.ini
+  become: yes # Runs commands as 'sudo'
+  
+  roles:
+    - common      # Kernel tuning, UFW, and OS updates
+    - monitoring  # Prometheus Node Exporter
+    - squid       # The optimized 5MB-aware Squid config

@@ -116,3 +116,64 @@ resource "google_compute_router_nat" "nat" {
   nat_ip_allocate_option             = "AUTO_ONLY"
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
 }
+
+# 1. The Proxy-Only Subnet (Required for Regional Proxy ILBs)
+resource "google_compute_subnetwork" "proxy_only" {
+  name          = "proxy-only-subnet"
+  ip_cidr_range = "10.129.0.0/23" # Must not overlap with your main subnet
+  purpose       = "REGIONAL_MANAGED_PROXY"
+  role          = "ACTIVE"
+  region        = var.gcp_region
+  network       = google_compute_network.vpc.id
+}
+
+# 2. The Health Check
+resource "google_compute_region_health_check" "squid_health" {
+  name   = "squid-health-check"
+  region = var.gcp_region
+  tcp_health_check {
+    port = "3128"
+  }
+}
+
+# 1. Create an Unmanaged Instance Group for your existing VMs
+resource "google_compute_instance_group" "squid_group" {
+  name        = "squid-proxy-group"
+  description = "Group containing our Squid VMs"
+  instances   = google_compute_instance.squid_proxy[*].id
+  zone        = "${var.gcp_region}-a"
+
+  named_port {
+    name = "squid"
+    port = 3128
+  }
+}
+
+# 2. The Backend Service (The "Brain" of the Load Balancer)
+resource "google_compute_region_backend_service" "squid_backend" {
+  name                  = "squid-backend"
+  region                = var.gcp_region
+  protocol              = "TCP"
+  load_balancing_scheme = "INTERNAL_MANAGED"
+  health_checks         = [google_compute_region_health_check.squid_health.id]
+
+  backend {
+    group           = google_compute_instance_group.squid_group.id
+    balancing_mode  = "UTILIZATION"
+  }
+}
+
+# 3. The Forwarding Rule (The "Virtual IP" for the App)
+resource "google_compute_forwarding_rule" "squid_ilb" {
+  name                  = "squid-ilb-forwarding-rule"
+  region                = var.gcp_region
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "INTERNAL_MANAGED"
+  port_range            = "3128"
+  network               = google_compute_network.vpc.id
+  subnetwork            = google_compute_subnetwork.subnet.id
+  backend_service       = google_compute_region_backend_service.squid_backend.id
+  
+  # This ensures the ILB only uses the Proxy-Only subnet
+  depends_on = [google_compute_subnetwork.proxy_only]
+}

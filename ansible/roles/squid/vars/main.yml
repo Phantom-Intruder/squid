@@ -1,0 +1,4 @@
+squid_cache_size_mb: 10000
+squid_max_object_size_mb: 15
+squid_ram_cache_mb: 512
+squid_subnet: "10.0.0.0/20"

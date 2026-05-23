@@ -1,0 +1,22 @@
+# Define the internal network
+acl localnet src {{ squid_subnet }}  # Matches your Terraform subnet CIDR
+
+# Port and High-Performance Storage
+http_port 3128
+# 10GB Cache, 16 L1 dirs, 256 L2 dirs
+cache_dir aufs /var/spool/squid {{ squid_cache_size_mb }} 16 256
+
+# BIG PAYLOAD OPTIMIZATION
+# Default is often 256KB. We need 10MB to fit your 5MB menus!
+maximum_object_size {{ squid_max_object_size_mb }} MB
+cache_mem {{ squid_ram_cache_mb }} MB
+
+# THE COST SAVER: Ignore "no-cache" headers for Toast/Square
+# This keeps the 5MB JSON for 1 hour regardless of what the API says
+refresh_pattern ^https://api.toasttab.com/.* 60 20% 1440 ignore-no-cache ignore-private
+refresh_pattern ^https://connect.squareup.com/.* 60 20% 1440 ignore-no-cache ignore-private
+
+# Standard defaults
+refresh_pattern .               0       20%     4320
+http_access allow localnet
+http_access deny all

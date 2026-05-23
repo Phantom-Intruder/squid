@@ -1,0 +1,10 @@
+- name: Install Node Exporter (For Kernel Metrics)
+  apt:
+    name: prometheus-node-exporter
+    state: present
+
+- name: Ensure Node Exporter is running
+  systemd:
+    name: prometheus-node-exporter
+    state: started
+    enabled: yes

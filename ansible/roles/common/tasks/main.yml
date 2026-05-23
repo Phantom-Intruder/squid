@@ -1,0 +1,19 @@
+- name: Optimize Kernel for High-Traffic Proxy
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+  loop:
+    - { name: 'net.core.somaxconn', value: '4096' }
+    - { name: 'fs.file-max', value: '2097152' }
+    - { name: 'net.ipv4.tcp_fin_timeout', value: '15' }
+
+- name: Ensure UFW allows Squid and SSH
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - '3128'
+    - '22'
