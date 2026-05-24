@@ -1,6 +1,5 @@
 # Squid SSL Bumping Proxy Farm
 
-High-performance caching proxy infrastructure for reducing API costs and latency when calling Toast POS and Square Payment APIs.
 
 ## 🎯 What This Does
 
