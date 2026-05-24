@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: example-microservice
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: your-app-image:latest
+    env:
+    # Configure proxy
+    - name: HTTP_PROXY
+      value: "http://squid-proxy:3128"
+    - name: HTTPS_PROXY
+      value: "http://squid-proxy:3128"
+    - name: NO_PROXY
+      value: "localhost,127.0.0.1,.svc.cluster.local"
+
+    # Trust the Squid CA certificate
+    # Choose the appropriate variable for your language/framework
+    - name: NODE_EXTRA_CA_CERTS  # Node.js
+      value: /etc/ssl/certs/squid-ca.crt
+    - name: REQUESTS_CA_BUNDLE   # Python requests library
+      value: /etc/ssl/certs/squid-ca.crt
+    - name: SSL_CERT_FILE        # Python ssl module
+      value: /etc/ssl/certs/squid-ca.crt
+    - name: CURL_CA_BUNDLE       # curl
+      value: /etc/ssl/certs/squid-ca.crt
+
+    volumeMounts:
+    - name: squid-ca
+      mountPath: /etc/ssl/certs/squid-ca.crt
+      subPath: squid-ca.crt
+      readOnly: true
+
+  volumes:
+  - name: squid-ca
+    configMap:
+      name: squid-ca-cert
+      items:
+      - key: squid-ca.crt
+        path: squid-ca.crt

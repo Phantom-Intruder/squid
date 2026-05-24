@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: squid-ca-cert
+  namespace: default  # Change to your namespace
+data:
+  squid-ca.crt: |
+    # REPLACE THIS WITH THE CONTENTS OF /tmp/squid-ca.crt
+    # After running the Ansible playbook, run:
+    #   cat /tmp/squid-ca.crt
+    # Then paste the certificate here (including the BEGIN/END lines)
+    -----BEGIN CERTIFICATE-----
+    YOUR_CERTIFICATE_CONTENT_HERE
+    -----END CERTIFICATE-----

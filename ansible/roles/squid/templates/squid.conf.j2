@@ -1,8 +1,29 @@
+# ===== PROCESS TUNING =====
+# Match kernel ulimit settings (65536 FDs)
+max_filedescriptors 65536
+# Workers for multi-core (disable for SSL bumping - single process is more stable)
+# workers 4
+
 # Define the internal network
 acl localnet src {{ squid_subnet }}  # Matches your Terraform subnet CIDR
 
-# Port and High-Performance Storage
-http_port 3128
+# SSL/TLS Interception Setup
+# Define where the certificates and keys live
+http_port 3128 ssl-bump cert=/etc/squid/squid-ca.crt key=/etc/squid/squid-ca.key generate-host-certificates=on dynamic_cert_mem_cache_size=4MB
+
+# The Bumping Logic
+acl toast_api ssl::server_name .toasttab.com
+acl square_api ssl::server_name .squareup.com
+
+# 1. Peek at the connection to see the domain
+ssl_bump peek all
+# 2. Bump (decrypt) only our restaurant APIs
+ssl_bump bump toast_api
+ssl_bump bump square_api
+# 3. Splice (pass through) everything else without touching it
+ssl_bump splice all
+
+# High-Performance Storage
 # 10GB Cache, 16 L1 dirs, 256 L2 dirs
 cache_dir aufs /var/spool/squid {{ squid_cache_size_mb }} 16 256
 
@@ -10,6 +31,18 @@ cache_dir aufs /var/spool/squid {{ squid_cache_size_mb }} 16 256
 # Default is often 256KB. We need 10MB to fit your 5MB menus!
 maximum_object_size {{ squid_max_object_size_mb }} MB
 cache_mem {{ squid_ram_cache_mb }} MB
+
+# Define your "Sibling" (the other server)
+# 3128 is the proxy port, 3130 is the ICP (query) port
+{% for host in groups['squid_servers'] %}
+  {# Don't add yourself as a peer! #}
+  {% if hostvars[host]['inventory_hostname'] != inventory_hostname %}
+cache_peer {{ hostvars[host]['ansible_host'] }} sibling 3128 3130 proxy-only
+  {% endif %}
+{% endfor %}
+
+# Allow the siblings to talk to each other
+icp_access allow localnet
 
 # THE COST SAVER: Ignore "no-cache" headers for Toast/Square
 # This keeps the 5MB JSON for 1 hour regardless of what the API says

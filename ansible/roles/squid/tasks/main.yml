@@ -1,0 +1,140 @@
+---
+# Generate CA certificate on Ansible control node (once)
+- name: Check if CA private key exists in vault
+  stat:
+    path: "{{ playbook_dir }}/files/vault/squid-ca.key"
+  delegate_to: localhost
+  run_once: true
+  register: ca_key_vault
+
+- name: Check if CA certificate exists
+  stat:
+    path: "{{ playbook_dir }}/files/squid-ca.crt"
+  delegate_to: localhost
+  run_once: true
+  register: ca_cert_exists
+
+- name: Create vault directory
+  file:
+    path: "{{ playbook_dir }}/files/vault"
+    state: directory
+    mode: '0700'
+  delegate_to: localhost
+  run_once: true
+  when: not ca_key_vault.stat.exists
+
+- name: Generate Squid CA private key
+  community.crypto.openssl_privatekey:
+    path: "{{ playbook_dir }}/files/vault/squid-ca.key"
+    size: 4096
+    type: RSA
+  delegate_to: localhost
+  run_once: true
+  when: not ca_key_vault.stat.exists
+  no_log: true
+
+- name: Generate Squid CA certificate
+  community.crypto.x509_certificate:
+    path: "{{ playbook_dir }}/files/squid-ca.crt"
+    privatekey_path: "{{ playbook_dir }}/files/vault/squid-ca.key"
+    provider: selfsigned
+    selfsigned_not_after: "+3650d"
+    selfsigned_digest: sha256
+    selfsigned_not_before: "+0s"
+  delegate_to: localhost
+  run_once: true
+  when: not ca_cert_exists.stat.exists
+
+- name: Encrypt private key with Ansible Vault (if not already encrypted)
+  shell: |
+    if ! ansible-vault view {{ playbook_dir }}/files/vault/squid-ca.key &>/dev/null; then
+      ansible-vault encrypt {{ playbook_dir }}/files/vault/squid-ca.key
+    fi
+  delegate_to: localhost
+  run_once: true
+  when: not ca_key_vault.stat.exists
+  no_log: true
+
+# Install Squid
+- name: Install Squid proxy server
+  apt:
+    name: squid
+    state: present
+    update_cache: yes
+
+# Deploy SSL certificates to squid servers
+- name: Create Squid SSL directory
+  file:
+    path: /etc/squid
+    state: directory
+    mode: '0755'
+
+- name: Copy CA certificate to squid servers
+  copy:
+    src: "{{ playbook_dir }}/files/squid-ca.crt"
+    dest: /etc/squid/squid-ca.crt
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart squid
+
+- name: Copy CA private key to squid servers (from vault)
+  copy:
+    src: "{{ playbook_dir }}/files/vault/squid-ca.key"
+    dest: /etc/squid/squid-ca.key
+    owner: proxy
+    group: proxy
+    mode: '0600'
+  no_log: true
+  notify: restart squid
+
+# Initialize SSL certificate database
+- name: Check if SSL certificate database exists
+  stat:
+    path: /var/lib/squid/ssl_db
+  register: ssl_db
+
+- name: Initialize Squid SSL certificate database
+  command: /usr/lib/squid/security_file_certgen -c -s /var/lib/squid/ssl_db -M 4MB
+  when: not ssl_db.stat.exists
+  notify: restart squid
+
+- name: Set ownership on SSL certificate database
+  file:
+    path: /var/lib/squid/ssl_db
+    owner: proxy
+    group: proxy
+    recurse: yes
+    state: directory
+
+# Deploy Squid configuration
+- name: Deploy optimized squid.conf
+  template:
+    src: squid.conf.j2
+    dest: /etc/squid/squid.conf
+    owner: root
+    group: root
+    mode: '0644'
+    validate: 'squid -k parse -f %s'
+  notify: restart squid
+
+# Ensure cache directory exists with proper permissions
+- name: Create Squid cache directory
+  file:
+    path: /var/spool/squid
+    state: directory
+    owner: proxy
+    group: proxy
+    mode: '0750'
+
+- name: Initialize Squid cache directory
+  command: squid -z
+  args:
+    creates: /var/spool/squid/00
+
+# Enable and start Squid service
+- name: Enable and start Squid service
+  systemd:
+    name: squid
+    enabled: yes
+    state: started

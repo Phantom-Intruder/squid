@@ -1,2 +1,8 @@
 terraform/.terraform/*
 .claude/*
+
+# SSL/TLS - Allow vault-encrypted keys, block unencrypted
+*.key
+!ansible/files/vault/*.key
+ansible/files/squid-ca.crt
+/tmp/squid-ca.*
